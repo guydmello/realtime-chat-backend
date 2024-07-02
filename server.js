@@ -88,12 +88,13 @@ io.on('connection', (socket) => {
       const roles = assignRoles(players);
       const [randomTheme, words] = getRandomThemeAndWords();
       const board = createBoard(words);
+      const word = getRandomWord(words);
 
       players.forEach(player => {
-        io.to(player.id).emit('gameStarted', { role: roles[player.id], board, theme: randomTheme, word: getRandomWord(words) });
+        io.to(player.id).emit('gameStarted', { role: roles[player.id], board, theme: randomTheme, word });
       });
 
-      io.to(lobbyCode).emit('gameStarted', { board, theme: randomTheme });
+      io.to(lobbyCode).emit('gameBoard', { board, theme: randomTheme });
     }
   });
 
