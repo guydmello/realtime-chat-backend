@@ -98,6 +98,22 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('newGame', (lobbyCode) => {
+    if (lobbies[lobbyCode]) {
+      const players = lobbies[lobbyCode].players;
+      const roles = assignRoles(players);
+      const [randomTheme, words] = getRandomThemeAndWords();
+      const board = createBoard(words);
+      const word = getRandomWord(words);
+
+      players.forEach(player => {
+        io.to(player.id).emit('gameStarted', { role: roles[player.id], board, theme: randomTheme, word });
+      });
+
+      io.to(lobbyCode).emit('gameBoard', { board, theme: randomTheme });
+    }
+  });
+
   socket.on('nextRound', (lobbyCode) => {
     if (lobbies[lobbyCode]) {
       const players = lobbies[lobbyCode].players;
