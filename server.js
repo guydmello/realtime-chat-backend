@@ -73,8 +73,8 @@ io.on('connection', (socket) => {
 
   socket.on('joinLobby', (lobbyCode) => {
     if (lobbies[lobbyCode]) {
-      socket.join(lobbyCode);
       lobbies[lobbyCode].players.push(socket.id);
+      socket.join(lobbyCode);
       io.to(lobbyCode).emit('updatePlayers', lobbies[lobbyCode].players);
     } else {
       socket.emit('error', 'Lobby does not exist');
@@ -92,6 +92,17 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    for (const lobbyCode in lobbies) {
+      const index = lobbies[lobbyCode].players.indexOf(socket.id);
+      if (index !== -1) {
+        lobbies[lobbyCode].players.splice(index, 1);
+        io.to(lobbyCode).emit('updatePlayers', lobbies[lobbyCode].players);
+        if (lobbies[lobbyCode].players.length === 0) {
+          delete lobbies[lobbyCode];
+        }
+        break;
+      }
+    }
     console.log('user disconnected');
   });
 });
