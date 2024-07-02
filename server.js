@@ -114,22 +114,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('nextRound', (lobbyCode) => {
-    if (lobbies[lobbyCode]) {
-      const players = lobbies[lobbyCode].players;
-      const roles = assignRoles(players);
-      const [theme, words] = lobbies[lobbyCode].currentTheme;
-      const board = createBoard(words);
-      const word = getRandomWord(words);
-
-      players.forEach(player => {
-        io.to(player.id).emit('gameStarted', { role: roles[player.id], board, theme, word });
-      });
-
-      io.to(lobbyCode).emit('gameBoard', { board, theme });
-    }
-  });
-
   socket.on('updateScores', ({ lobbyCode, scores }) => {
     if (lobbies[lobbyCode]) {
       lobbies[lobbyCode].players.forEach(player => {
@@ -137,7 +121,7 @@ io.on('connection', (socket) => {
           player.score = scores[player.name];
         }
       });
-      io.to(lobbyCode).emit('updatePlayers', lobbies[lobbyCode].players);
+      io.to(lobbyCode).emit('updateScores', scores);
     }
   });
 
