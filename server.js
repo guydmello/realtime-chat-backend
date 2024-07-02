@@ -64,16 +64,17 @@ const lobbies = {};
 io.on('connection', (socket) => {
   console.log('a user connected');
 
-  socket.on('createLobby', () => {
+  socket.on('createLobby', (username) => {
     const lobbyCode = uuidv4();
-    lobbies[lobbyCode] = { players: [] };
+    lobbies[lobbyCode] = { players: [{ id: socket.id, name: username }] };
     socket.join(lobbyCode);
     socket.emit('lobbyCreated', lobbyCode);
+    io.to(lobbyCode).emit('updatePlayers', lobbies[lobbyCode].players);
   });
 
-  socket.on('joinLobby', (lobbyCode) => {
+  socket.on('joinLobby', (lobbyCode, username) => {
     if (lobbies[lobbyCode]) {
-      lobbies[lobbyCode].players.push(socket.id);
+      lobbies[lobbyCode].players.push({ id: socket.id, name: username });
       socket.join(lobbyCode);
       io.to(lobbyCode).emit('updatePlayers', lobbies[lobbyCode].players);
     } else {
@@ -87,13 +88,18 @@ io.on('connection', (socket) => {
       const roles = assignRoles(players);
       const [randomTheme, words] = getRandomThemeAndWords();
       const board = createBoard(words);
-      io.to(lobbyCode).emit('gameStarted', { roles, board, theme: randomTheme, word: getRandomWord(words) });
+
+      players.forEach(player => {
+        io.to(player.id).emit('gameStarted', { role: roles[player.id], board, theme: randomTheme, word: getRandomWord(words) });
+      });
+
+      io.to(lobbyCode).emit('gameStarted', { board, theme: randomTheme });
     }
   });
 
   socket.on('disconnect', () => {
     for (const lobbyCode in lobbies) {
-      const index = lobbies[lobbyCode].players.indexOf(socket.id);
+      const index = lobbies[lobbyCode].players.findIndex(player => player.id === socket.id);
       if (index !== -1) {
         lobbies[lobbyCode].players.splice(index, 1);
         io.to(lobbyCode).emit('updatePlayers', lobbies[lobbyCode].players);
@@ -115,7 +121,7 @@ function assignRoles(players) {
   const numMoles = Math.floor(Math.random() * 2) + 1;
   const roles = Array(numMoles).fill("mole").concat(Array(players.length - numMoles).fill("detective"));
   return roles.sort(() => Math.random() - 0.5).reduce((acc, role, index) => {
-    acc[players[index]] = role;
+    acc[players[index].id] = role;
     return acc;
   }, {});
 }
