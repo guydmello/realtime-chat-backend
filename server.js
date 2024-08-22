@@ -66,24 +66,27 @@ io.on('connection', (socket) => {
 
   socket.on('createLobby', (username) => {
     const lobbyCode = uuidv4();
-    lobbies[lobbyCode] = { players: [{ id: socket.id, name: username, score: 0 }] };
+    lobbies[lobbyCode] = { 
+      players: [{ id: socket.id, name: username, score: 0 }], 
+      host: socket.id 
+    };
     socket.join(lobbyCode);
-    socket.emit('lobbyCreated', lobbyCode);
-    io.to(lobbyCode).emit('updatePlayers', lobbies[lobbyCode].players);
+    socket.emit('lobbyCreated', { lobbyCode, hostId: socket.id });
+    io.to(lobbyCode).emit('updatePlayers', { players: lobbies[lobbyCode].players, hostId: socket.id });
   });
 
   socket.on('joinLobby', (lobbyCode, username) => {
     if (lobbies[lobbyCode]) {
       lobbies[lobbyCode].players.push({ id: socket.id, name: username, score: 0 });
       socket.join(lobbyCode);
-      io.to(lobbyCode).emit('updatePlayers', lobbies[lobbyCode].players);
+      io.to(lobbyCode).emit('updatePlayers', { players: lobbies[lobbyCode].players, hostId: lobbies[lobbyCode].host });
     } else {
       socket.emit('error', 'Lobby does not exist');
     }
   });
 
   socket.on('startGame', (lobbyCode) => {
-    if (lobbies[lobbyCode]) {
+    if (lobbies[lobbyCode] && lobbies[lobbyCode].host === socket.id) { // Check if the player is the host
       const players = lobbies[lobbyCode].players;
       const roles = assignRoles(players);
       const [randomTheme, words] = getRandomThemeAndWords();
@@ -95,11 +98,32 @@ io.on('connection', (socket) => {
       });
 
       io.to(lobbyCode).emit('gameBoard', { board, theme: randomTheme });
+    } else {
+      socket.emit('error', 'Only the host can start the game');
+    }
+  });
+
+  // New event handlers for proceeding to the next screen
+  socket.on('proceedToBoard', (lobbyCode) => {
+    if (lobbies[lobbyCode] && lobbies[lobbyCode].host === socket.id) {
+      io.to(lobbyCode).emit('proceedToBoard');
+    }
+  });
+
+  socket.on('proceedToReveal', (lobbyCode) => {
+    if (lobbies[lobbyCode] && lobbies[lobbyCode].host === socket.id) {
+      io.to(lobbyCode).emit('proceedToReveal');
+    }
+  });
+
+  socket.on('proceedToAddPoints', (lobbyCode) => {
+    if (lobbies[lobbyCode] && lobbies[lobbyCode].host === socket.id) {
+      io.to(lobbyCode).emit('proceedToAddPoints');
     }
   });
 
   socket.on('newGame', (lobbyCode) => {
-    if (lobbies[lobbyCode]) {
+    if (lobbies[lobbyCode] && lobbies[lobbyCode].host === socket.id) { // Check if the player is the host
       const players = lobbies[lobbyCode].players;
       const roles = assignRoles(players);
       const [randomTheme, words] = getRandomThemeAndWords();
@@ -111,6 +135,9 @@ io.on('connection', (socket) => {
       });
 
       io.to(lobbyCode).emit('gameBoard', { board, theme: randomTheme });
+      io.to(lobbyCode).emit('newGameStarted'); // Notify clients that a new game has started
+    } else {
+      socket.emit('error', 'Only the host can start a new game');
     }
   });
 
@@ -146,8 +173,9 @@ server.listen(5000, () => {
 });
 
 function assignRoles(players) {
-  const numMoles = Math.floor(Math.random() * 2) + 1;
-  const roles = Array(numMoles).fill("mole").concat(Array(players.length - numMoles).fill("detective"));
+  const roles = ["mole"]; // Ensure there is always 1 mole
+  const detectiveCount = players.length - 1;
+  roles.push(...Array(detectiveCount).fill("detective"));
   return roles.sort(() => Math.random() - 0.5).reduce((acc, role, index) => {
     acc[players[index].id] = role;
     return acc;
